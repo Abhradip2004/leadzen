@@ -1,9 +1,6 @@
-from fastapi import BackgroundTasks
 from app.db.organizations import get_organization_by_phone_number_id
-from app.db.leads import create_lead, update_lead_ai
+from app.db.leads import create_lead
 from app.db.lead_details import insert_lead_details
-from app.ai.service import classify_lead
-
 from app.db.webhook_events import (
     insert_webhook_event,
     mark_webhook_processed,
@@ -12,39 +9,16 @@ from app.db.webhook_events import (
 from app.db.conversations import create_conversation
 from app.db.messages import insert_message
 
+from app.tasks import process_ai_for_lead
 
-def process_ai_for_lead(lead_id: str, message: str):
-    ai_result = classify_lead(message, lead_id)
 
-    update_lead_ai(
-        lead_id=lead_id,
-        summary=ai_result["summary"],
-        intent=ai_result["intent"],
-        followup=ai_result["followup"],
-    )
-
-async def process_whatsapp_message(payload: dict, background_tasks):
-    """
-    Placeholder webhook processor.
-    """
-
-    # TODO: Extract phone_number_id from payload properly
-    phone_number_id = "test-number-001"
-
-    # TODO: Extract sender + message properly
-    phone_number = "unknown"
-    message = "unknown"
-
-    return await process_internal_message(
-        phone_number=phone_number,
-        message=message,
-        background_tasks=background_tasks
-    )
+# ------------------------------------------------------------------
+# Internal Message Processing (used by test endpoint)
+# ------------------------------------------------------------------
 
 async def process_internal_message(
     phone_number: str,
     message: str,
-    background_tasks: BackgroundTasks,
 ):
     phone_number_id = "test-number-001"
 
@@ -60,43 +34,45 @@ async def process_internal_message(
         source="whatsapp",
     )
 
-    # Example dynamic extraction (temporary placeholder)
-    extracted_details = {
-        "raw_message": message
-    }
+    insert_lead_details(
+        lead_id=lead["id"],
+        data={"raw_message": message},
+    )
 
-    insert_lead_details(lead["id"], extracted_details)
-
-    background_tasks.add_task(
-        process_ai_for_lead,
+    # 🚀 Dispatch Celery task
+    process_ai_for_lead.delay(
         lead["id"],
-        message
+        message,
     )
 
     return {
         "lead_id": lead["id"],
         "organization": org["name"],
-        "status": "processing",
+        "status": "queued_for_processing",
     }
-    
 
-async def process_whatsapp_message(payload: dict, background_tasks):
+
+# ------------------------------------------------------------------
+# Full Webhook Processing (Production Path)
+# ------------------------------------------------------------------
+
+async def process_whatsapp_message(payload: dict):
     """
     Full traceable webhook pipeline.
     """
 
-    # Extract unique event id (you'll replace with real Meta field later)
+    # Unique event ID (replace with real Meta field later)
     event_id = payload.get("event_id", "test-event")
 
-    # Store raw event
+    # Store raw webhook event
     event = insert_webhook_event(event_id, payload)
 
-    # If duplicate event, skip
+    # Duplicate event guard
     if event is None:
         return {"status": "duplicate_event"}
 
     try:
-        # Extract fields properly later
+        # TODO: Replace with real extraction
         phone_number_id = "test-number-001"
         sender_number = payload.get("phone_number")
         message_text = payload.get("message")
@@ -125,8 +101,8 @@ async def process_whatsapp_message(payload: dict, background_tasks):
             content=message_text,
         )
 
-        background_tasks.add_task(
-            process_ai_for_lead,
+        # 🚀 Dispatch Celery task
+        process_ai_for_lead.delay(
             lead["id"],
             message_text,
         )

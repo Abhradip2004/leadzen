@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter
 from pydantic import BaseModel
 from app.services.whatsapp_service import process_internal_message
 
@@ -11,11 +11,8 @@ class TestMessage(BaseModel):
 
 
 @router.post("/test-message")
-async def test_message(data: TestMessage, background_tasks: BackgroundTasks):
-    result = await process_internal_message(
+async def test_message(data: TestMessage):
+    return await process_internal_message(
         phone_number=data.phone_number,
         message=data.message,
-        background_tasks=background_tasks
     )
-
-    return result
