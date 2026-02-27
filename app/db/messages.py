@@ -1,5 +1,4 @@
-from psycopg2.extras import RealDictCursor
-from app.db.connection import get_connection, release_connection
+from .session import fetch_one
 
 
 def insert_message(
@@ -8,23 +7,25 @@ def insert_message(
     content: str,
     whatsapp_message_id: str = None,
 ):
-    conn = get_connection()
-    try:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                """
-                INSERT INTO messages (
-                    conversation_id,
-                    direction,
-                    content,
-                    whatsapp_message_id
-                )
-                VALUES (%s, %s, %s, %s)
-                RETURNING *
-                """,
-                (conversation_id, direction, content, whatsapp_message_id),
-            )
-            conn.commit()
-            return cur.fetchone()
-    finally:
-        release_connection(conn)
+    stmt = """
+        INSERT INTO messages (
+            conversation_id,
+            direction,
+            content,
+            whatsapp_message_id
+        )
+        VALUES (
+            :conversation_id,
+            :direction,
+            :content,
+            :whatsapp_message_id
+        )
+        RETURNING *
+    """
+
+    return fetch_one(stmt, {
+        "conversation_id": conversation_id,
+        "direction": direction,
+        "content": content,
+        "whatsapp_message_id": whatsapp_message_id,
+    })

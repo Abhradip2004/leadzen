@@ -1,23 +1,20 @@
-from psycopg2.extras import RealDictCursor
-from app.db.connection import get_connection, release_connection
+from .session import fetch_one
 
 
 def create_conversation(lead_id: str, organization_id: str):
-    conn = get_connection()
-    try:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                """
-                INSERT INTO conversations (
-                    lead_id,
-                    organization_id
-                )
-                VALUES (%s, %s)
-                RETURNING *
-                """,
-                (lead_id, organization_id),
-            )
-            conn.commit()
-            return cur.fetchone()
-    finally:
-        release_connection(conn)
+    stmt = """
+        INSERT INTO conversations (
+            lead_id,
+            organization_id
+        )
+        VALUES (
+            :lead_id,
+            :organization_id
+        )
+        RETURNING *
+    """
+
+    return fetch_one(stmt, {
+        "lead_id": lead_id,
+        "organization_id": organization_id,
+    })

@@ -1,6 +1,4 @@
-import time
-from psycopg2.extras import RealDictCursor
-from app.db.connection import get_connection, release_connection
+from .session import fetch_one
 
 
 def insert_ai_log(
@@ -11,39 +9,31 @@ def insert_ai_log(
     raw_response: str,
     latency_ms: int,
 ):
-    conn = get_connection()
-    try:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            query = """
-                INSERT INTO ai_logs (
-                    lead_id,
-                    provider,
-                    model,
-                    prompt,
-                    raw_response,
-                    latency_ms
-                )
-                VALUES (%s, %s, %s, %s, %s, %s)
-                RETURNING *
-            """
+    stmt = """
+        INSERT INTO ai_logs (
+            lead_id,
+            provider,
+            model,
+            prompt,
+            raw_response,
+            latency_ms
+        )
+        VALUES (
+            :lead_id,
+            :provider,
+            :model,
+            :prompt,
+            :raw_response,
+            :latency_ms
+        )
+        RETURNING *
+    """
 
-            cur.execute(
-                query,
-                (
-                    lead_id,
-                    provider,
-                    model,
-                    prompt,
-                    raw_response,
-                    latency_ms,
-                ),
-            )
-
-            conn.commit()
-            return cur.fetchone()
-
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        release_connection(conn)
+    return fetch_one(stmt, {
+        "lead_id": lead_id,
+        "provider": provider,
+        "model": model,
+        "prompt": prompt,
+        "raw_response": raw_response,
+        "latency_ms": latency_ms,
+    })
