@@ -1,4 +1,4 @@
-from .session import fetch_one, execute
+from .session import fetch_one, fetch_all, execute
 
 
 def create_lead(
@@ -93,4 +93,31 @@ def get_lead_by_id(lead_id: str):
         WHERE id = :lead_id
     """
 
+    return fetch_one(stmt, {"lead_id": lead_id})
+
+def get_all_leads(limit: int = 50, offset: int = 0):
+    stmt = """
+        SELECT *
+        FROM leads
+        ORDER BY created_at DESC
+        LIMIT :limit
+        OFFSET :offset
+    """
+    return fetch_all(stmt, {
+        "limit": limit,
+        "offset": offset,
+    })
+
+
+def get_total_leads_count():
+    stmt = "SELECT COUNT(*) as count FROM leads"
+    result = fetch_one(stmt)
+    return result["count"]
+
+def get_lead_details(lead_id: str):
+    stmt = """
+        SELECT *
+        FROM leads
+        WHERE id = :lead_id
+    """
     return fetch_one(stmt, {"lead_id": lead_id})
