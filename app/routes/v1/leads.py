@@ -6,6 +6,10 @@ from app.db.leads import (
 )
 from app.schemas.lead import LeadListResponse, SingleLeadResponse
 
+from app.db.conversations import get_conversations_by_lead_id
+from app.schemas.conversation import ConversationListResponse
+
+
 router = APIRouter(prefix="/api/v1/leads", tags=["v1-leads"])
 
 
@@ -13,9 +17,20 @@ router = APIRouter(prefix="/api/v1/leads", tags=["v1-leads"])
 def list_leads(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    ai_status: str | None = Query(None),
+    search: str | None = Query(None),
 ):
-    leads = get_all_leads(limit=limit, offset=offset)
-    total = get_total_leads_count()
+    leads = get_all_leads(
+        limit=limit,
+        offset=offset,
+        ai_status=ai_status,
+        search=search,
+    )
+
+    total = get_total_leads_count(
+        ai_status=ai_status,
+        search=search,
+    )
 
     return {
         "leads": leads,
@@ -31,3 +46,9 @@ def get_lead(lead_id: str):
         raise HTTPException(status_code=404, detail="Lead not found")
 
     return {"lead": lead}
+
+@router.get("/{lead_id}/conversations", response_model=ConversationListResponse)
+def get_lead_conversations(lead_id: str):
+    conversations = get_conversations_by_lead_id(lead_id)
+
+    return {"conversations": conversations}

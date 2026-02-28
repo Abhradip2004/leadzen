@@ -1,4 +1,4 @@
-from .session import fetch_one
+from .session import fetch_one, fetch_all
 
 
 def insert_message(
@@ -29,3 +29,12 @@ def insert_message(
         "content": content,
         "whatsapp_message_id": whatsapp_message_id,
     })
+    
+def get_messages_by_conversation_id(conversation_id: str):
+    stmt = """
+        SELECT *
+        FROM messages
+        WHERE conversation_id = :conversation_id
+        ORDER BY created_at ASC
+    """
+    return fetch_all(stmt, {"conversation_id": conversation_id})

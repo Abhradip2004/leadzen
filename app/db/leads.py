@@ -95,23 +95,61 @@ def get_lead_by_id(lead_id: str):
 
     return fetch_one(stmt, {"lead_id": lead_id})
 
-def get_all_leads(limit: int = 50, offset: int = 0):
-    stmt = """
+def get_all_leads(
+    limit: int = 50,
+    offset: int = 0,
+    ai_status: str | None = None,
+    search: str | None = None,
+):
+    base_query = """
         SELECT *
         FROM leads
+    """
+
+    conditions = []
+    params = {"limit": limit, "offset": offset}
+
+    if ai_status:
+        conditions.append("ai_status = :ai_status")
+        params["ai_status"] = ai_status
+
+    if search:
+        conditions.append("phone_number ILIKE :search")
+        params["search"] = f"%{search}%"
+
+    if conditions:
+        base_query += " WHERE " + " AND ".join(conditions)
+
+    base_query += """
         ORDER BY created_at DESC
         LIMIT :limit
         OFFSET :offset
     """
-    return fetch_all(stmt, {
-        "limit": limit,
-        "offset": offset,
-    })
+
+    return fetch_all(base_query, params)
 
 
-def get_total_leads_count():
-    stmt = "SELECT COUNT(*) as count FROM leads"
-    result = fetch_one(stmt)
+def get_total_leads_count(
+    ai_status: str | None = None,
+    search: str | None = None,
+):
+    base_query = "SELECT COUNT(*) as count FROM leads"
+
+    conditions = []
+    params = {}
+
+    if ai_status:
+        conditions.append("ai_status = :ai_status")
+        params["ai_status"] = ai_status
+
+    if search:
+        conditions.append("phone_number ILIKE :search")
+        params["search"] = f"%{search}%"
+
+    if conditions:
+        base_query += " WHERE " + " AND ".join(conditions)
+
+    result = fetch_one(base_query, params)
     return result["count"]
 
 def get_lead_details(lead_id: str):
