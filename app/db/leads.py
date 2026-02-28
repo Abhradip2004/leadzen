@@ -62,7 +62,33 @@ def update_lead_ai(
 
 def get_lead_ai_status(lead_id: str):
     stmt = """
-        SELECT ai_summary
+        SELECT ai_summary, ai_status
+        FROM leads
+        WHERE id = :lead_id
+    """
+    
+    return fetch_one(stmt, {"lead_id": lead_id})
+
+
+def update_lead_ai_status(lead_id: str, status: str):
+    stmt = """
+        UPDATE leads
+        SET
+            ai_status = :status,
+            updated_at = NOW()
+        WHERE id = :lead_id
+        RETURNING *
+    """
+
+    return fetch_one(stmt, {
+        "status": status,
+        "lead_id": lead_id,
+    })
+
+
+def get_lead_by_id(lead_id: str):
+    stmt = """
+        SELECT *
         FROM leads
         WHERE id = :lead_id
     """

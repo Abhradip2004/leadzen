@@ -1,48 +1,69 @@
 import time
+from celery.exceptions import MaxRetriesExceededError
 from app.celery_app import celery
 from app.ai.service import classify_lead
-from app.db.leads import update_lead_ai, get_lead_ai_status
+from app.db.leads import (
+    update_lead_ai,
+    get_lead_ai_status,
+    update_lead_ai_status,
+)
 from app.db.ai_logs import insert_ai_log
 
 
 @celery.task(
     name="app.tasks.process_ai_for_lead",
     bind=True,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_backoff_max=60,
-    retry_kwargs={"max_retries": 5},
+    max_retries=5,
 )
 def process_ai_for_lead(self, lead_id: str, message: str):
-    """
-    Background AI processing for a lead.
-    Executed inside Celery worker.
-    """
 
-    existing = get_lead_ai_status(lead_id)
-    if existing and existing.get("ai_summary"):
-        return "Already processed"
+    try:
+        update_lead_ai_status(lead_id, "PROCESSING")
 
-    start_time = time.time()
+        existing = get_lead_ai_status(lead_id)
+        if existing and existing.get("ai_summary"):
+            update_lead_ai_status(lead_id, "COMPLETED")
+            return "Already processed"
 
-    result = classify_lead(message, lead_id=None)
+        start_time = time.time()
 
-    latency_ms = int((time.time() - start_time) * 1000)
+        result = classify_lead(message, lead_id=None)
 
-    insert_ai_log(
-        lead_id=lead_id,
-        provider="openrouter",
-        model="configured-model",
-        prompt="handled inside provider",
-        raw_response=str(result),
-        latency_ms=latency_ms,
-    )
+        latency_ms = int((time.time() - start_time) * 1000)
 
-    update_lead_ai(
-        lead_id=lead_id,
-        summary=result["summary"],
-        intent=result["intent"],
-        followup=result["followup"],
-    )
+        insert_ai_log(
+            lead_id=lead_id,
+            provider="openrouter",
+            model="configured-model",
+            prompt="handled inside provider",
+            raw_response=str(result),
+            latency_ms=latency_ms,
+        )
 
-    return "Completed"
+        update_lead_ai(
+            lead_id=lead_id,
+            summary=result["summary"],
+            intent=result["intent"],
+            followup=result["followup"],
+        )
+
+        update_lead_ai_status(lead_id, "COMPLETED")
+
+        return "Completed"
+
+    except Exception as exc:
+        try:
+            raise self.retry(exc=exc, countdown=2 ** self.request.retries)
+        except MaxRetriesExceededError:
+            update_lead_ai_status(lead_id, "FAILED")
+
+            insert_ai_log(
+                lead_id=lead_id,
+                provider="system",
+                model="retry_handler",
+                prompt="final_failure",
+                raw_response=str(exc),
+                latency_ms=0,
+            )
+
+            raise
