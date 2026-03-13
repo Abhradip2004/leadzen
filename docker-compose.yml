@@ -1,31 +1,25 @@
-version: "3.9"
-
 services:
 
   postgres:
     image: postgres:16
     container_name: leadzen_postgres
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_DB: leadzen
       POSTGRES_USER: leadzen
       POSTGRES_PASSWORD: leadzenpass
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    # ports:
-    #   - "5432:5432"
 
   redis:
     image: redis:7
     container_name: leadzen_redis
-    restart: always
-    # ports:
-    #   - "6379:6379"
+    restart: unless-stopped
 
   api:
     build: .
     container_name: leadzen_api
-    restart: always
+    restart: unless-stopped
     depends_on:
       - postgres
       - redis
@@ -37,7 +31,7 @@ services:
   worker:
     build: .
     container_name: leadzen_worker
-    restart: always
+    restart: unless-stopped
     depends_on:
       - postgres
       - redis
