@@ -3,7 +3,9 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+from app.config import DATABASE_URL
+
+# DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL not set")

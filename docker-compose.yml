@@ -1,0 +1,49 @@
+version: "3.9"
+
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: leadzen_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: leadzen
+      POSTGRES_USER: leadzen
+      POSTGRES_PASSWORD: leadzenpass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
+    container_name: leadzen_redis
+    restart: always
+    ports:
+      - "6379:6379"
+
+  api:
+    build: .
+    container_name: leadzen_api
+    restart: always
+    depends_on:
+      - postgres
+      - redis
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+
+  worker:
+    build: .
+    container_name: leadzen_worker
+    restart: always
+    depends_on:
+      - postgres
+      - redis
+    env_file:
+      - .env
+    command: celery -A app.celery_app.celery worker --loglevel=info
+
+volumes:
+  postgres_data:
