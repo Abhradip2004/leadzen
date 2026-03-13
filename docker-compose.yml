@@ -12,15 +12,15 @@ services:
       POSTGRES_PASSWORD: leadzenpass
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    # ports:
+    #   - "5432:5432"
 
   redis:
     image: redis:7
     container_name: leadzen_redis
     restart: always
-    ports:
-      - "6379:6379"
+    # ports:
+    #   - "6379:6379"
 
   api:
     build: .
