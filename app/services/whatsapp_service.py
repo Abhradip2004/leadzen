@@ -17,12 +17,16 @@ from app.tasks import process_ai_for_lead
 # ------------------------------------------------------------------
 
 async def process_internal_message(
-    phone_number: str,
+    user_id: str,
     message: str,
+    channel: str = "whatsapp",
+    organization_id: str = None,
 ):
-    phone_number_id = "test-number-001"
-
-    org = get_organization_by_phone_number_id(phone_number_id)
+    if organization_id:
+        org = {"id": organization_id, "name": "EmailClient"}
+    else:
+        phone_number_id = "test-number-001"
+        org = get_organization_by_phone_number_id(phone_number_id)
 
     if not org:
         return {"error": "Organization not found"}
@@ -30,8 +34,8 @@ async def process_internal_message(
     lead = create_lead(
         organization_id=org["id"],
         contact_name="Unknown",
-        phone_number=phone_number,
-        source="whatsapp",
+        phone_number=user_id,
+        source=channel,
     )
 
     insert_lead_details(
