@@ -1,19 +1,18 @@
-
-
 import os
 import requests
+import time
+
 from .base import AIProvider
 from .utils import extract_json, validate_response
-
-import time
 from app.db.ai_logs import insert_ai_log
+
 
 class OpenRouterProvider(AIProvider):
     def __init__(self):
         self.api_key = os.getenv("OPENROUTER_API_KEY")
         self.model = os.getenv(
             "OPENROUTER_MODEL",
-            "qwen/qwen3-vl-30b-a3b-thinking"
+            "qwen/qwen2.5-7b-instruct"
         )
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -27,10 +26,16 @@ class OpenRouterProvider(AIProvider):
 
         payload = {
             "model": self.model,
-            "temperature": 0,
+            "temperature": 0.4,
             "messages": [
-                {"role": "system", "content": "You are a lead qualification AI."},
-                {"role": "user", "content": prompt},
+                {
+                    "role": "system",
+                    "content": self._system_prompt(),
+                },
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
             ],
         }
 
@@ -57,22 +62,47 @@ class OpenRouterProvider(AIProvider):
 
         return validated
 
+    def _system_prompt(self) -> str:
+        return """
+You are a professional, polite, and helpful sales assistant.
+
+Your responsibilities:
+- Understand the user's requirement clearly
+- Classify their intent accurately
+- Respond like a human, not a machine
+
+Guidelines for response:
+- Always be polite and professional
+- Acknowledge the user’s request
+- Provide helpful next steps
+- Ask relevant follow-up questions when needed
+- Keep the tone natural and conversational
+- Avoid robotic or instruction-style language
+
+Do NOT:
+- Give internal instructions (e.g., "schedule immediately", "prioritize")
+- Use bullet-point commands
+- Sound like a system or backend process
+
+Your response must feel like a real human replying to an email.
+"""
+
     def _build_prompt(self, message: str):
         return f"""
-                Analyze the following incoming lead message from any industry.
+Analyze the following customer inquiry.
 
-                Classify buying intent as:
-                - hot (ready to act soon)
-                - medium (interested but not urgent)
-                - low (just exploring)
+Return ONLY valid JSON in this format:
+{{
+  "summary": "short summary of requirement",
+  "intent": "hot|medium|low",
+  "followup": "natural human reply message"
+}}
 
-                Return ONLY valid JSON:
-                {{
-                "summary": "...",
-                "intent": "hot|medium|low",
-                "followup": "..."
-                }}
+Important:
+- The "followup" must be a well-written email response
+- It should sound like a human sales assistant
+- It should NOT contain instructions or internal notes
 
-                Message:
-                \"\"\"{message}\"\"\"
-                """
+Customer Message:
+\"\"\"{message}\"\"\"
+"""

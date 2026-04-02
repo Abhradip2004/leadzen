@@ -1,29 +1,24 @@
 from app.db.organizations import get_organization_by_phone_number_id
 from app.db.leads import create_lead
 from app.db.lead_details import insert_lead_details
-from app.db.webhook_events import (
-    insert_webhook_event,
-    mark_webhook_processed,
-    mark_webhook_failed,
-)
-from app.db.conversations import create_conversation
-from app.db.messages import insert_message
 
 from app.tasks import process_ai_for_lead
 
-
-# ------------------------------------------------------------------
-# Internal Message Processing (used by test endpoint)
-# ------------------------------------------------------------------
 
 async def process_internal_message(
     user_id: str,
     message: str,
     channel: str = "whatsapp",
     organization_id: str = None,
+    metadata: dict = None,
 ):
+    """
+    Entry point for all incoming messages (email, WhatsApp, etc.).
+    Responsible for creating leads and dispatching AI processing.
+    """
+
     if organization_id:
-        org = {"id": organization_id, "name": "EmailClient"}
+        org = {"id": organization_id, "name": "ExternalClient"}
     else:
         phone_number_id = "test-number-001"
         org = get_organization_by_phone_number_id(phone_number_id)
@@ -40,13 +35,16 @@ async def process_internal_message(
 
     insert_lead_details(
         lead_id=lead["id"],
-        data={"raw_message": message},
+        data={
+            "raw_message": message,
+            "metadata": metadata or {},
+        },
     )
 
-    # 🚀 Dispatch Celery task
     process_ai_for_lead.delay(
         lead["id"],
         message,
+        metadata or {},
     )
 
     return {
@@ -54,67 +52,27 @@ async def process_internal_message(
         "organization": org["name"],
         "status": "queued_for_processing",
     }
-
-
-# ------------------------------------------------------------------
-# Full Webhook Processing (Production Path)
-# ------------------------------------------------------------------
-
+    
 async def process_whatsapp_message(payload: dict):
     """
-    Full traceable webhook pipeline.
+    Temporary compatibility layer for WhatsApp route.
+    Keeps existing routes functional while system becomes channel-agnostic.
     """
 
-    # Unique event ID (replace with real Meta field later)
-    event_id = payload.get("event_id", "test-event")
-
-    # Store raw webhook event
-    event = insert_webhook_event(event_id, payload)
-
-    # Duplicate event guard
-    if event is None:
-        return {"status": "duplicate_event"}
-
     try:
-        # TODO: Replace with real extraction
-        phone_number_id = "test-number-001"
-        sender_number = payload.get("phone_number")
-        message_text = payload.get("message")
+        # Extract fields (adjust later for real webhook)
+        sender = payload.get("phone_number")
+        message = payload.get("message")
 
-        org = get_organization_by_phone_number_id(phone_number_id)
+        if not sender or not message:
+            return {"error": "Invalid payload"}
 
-        if not org:
-            raise Exception("Organization not found")
-
-        lead = create_lead(
-            organization_id=org["id"],
-            contact_name="Unknown",
-            phone_number=sender_number,
-            source="whatsapp",
-            webhook_event_id=event["id"],
+        return await process_internal_message(
+            user_id=sender,
+            message=message,
+            channel="whatsapp",
         )
-
-        conversation = create_conversation(
-            lead_id=lead["id"],
-            organization_id=org["id"],
-        )
-
-        insert_message(
-            conversation_id=conversation["id"],
-            direction="incoming",
-            content=message_text,
-        )
-
-        # 🚀 Dispatch Celery task
-        process_ai_for_lead.delay(
-            lead["id"],
-            message_text,
-        )
-
-        mark_webhook_processed(event["id"])
-
-        return {"status": "processed"}
 
     except Exception as e:
-        mark_webhook_failed(event["id"], str(e))
-        raise
+        print(f"[WhatsAppService] Error: {e}")
+        return {"error": "processing_failed"}

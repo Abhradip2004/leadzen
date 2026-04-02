@@ -8,6 +8,8 @@ services:
       POSTGRES_DB: leadzen
       POSTGRES_USER: leadzen
       POSTGRES_PASSWORD: leadzenpass
+      EMAIL_USER: leadzendemo@gmail.com
+      EMAIL_PASS: wkbs sgic nimx tvrk
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
